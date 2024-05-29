@@ -1,0 +1,9 @@
+{
+    "name": "SleepLonger",
+    "version_number": "1.0.0",
+    "website_url": "https://github.com/Jdbye/OutwardSleepLonger",
+    "description": "Allows you to sleep for 3 or 7 days from any bed.",
+    "dependencies": [
+        "BepInEx-BepInExPack_Outward-5.4.19"
+    ]
+}
