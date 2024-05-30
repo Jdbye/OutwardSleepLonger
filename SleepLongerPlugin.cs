@@ -140,9 +140,7 @@ namespace SleepLonger
                     if (ambushReduction == int.MaxValue) ambushReduction = 0;
                     else ambushProbability -= ambushReduction;
 
-#if DEBUG
-                    Log.LogInfo($"Ambush probability: {CharacterManager.Instance.BaseAmbushProbability} Reduction: {ambushReduction} Adjusted: {ambushProbability}");
-#endif
+                    Log.LogDebug($"Ambush probability: {CharacterManager.Instance.BaseAmbushProbability} Reduction: {ambushReduction} Adjusted: {ambushProbability}");
 
                     // If ambush reduction reduces our probability to <= 0, we don't need to guard
                     // Otherwise, we need to guard half the total resting time to reduce the probability to 0, no matter what the probability is
@@ -498,9 +496,7 @@ namespace SleepLonger
                 catch (Exception e)
                 {
                     Log.LogError($"Failed to patch RestingMenu UI for player {__instance.CharacterUI.TargetCharacter.Name} ({e.GetType()}): {e.Message}");
-#if DEBUG
-                    Log.LogError($"Stack trace: {e.StackTrace}");
-#endif
+                    Log.LogDebug($"Stack trace: {e.StackTrace}");
                 }
             }
 
@@ -531,9 +527,7 @@ namespace SleepLonger
                 catch (Exception e)
                 {
                     Log.LogError($"ResetMenu Postfix failed for player {__instance.CharacterUI.TargetCharacter.Name} ({e.GetType()}): {e.Message}");
-#if DEBUG
-                    Log.LogError($"Stack trace: {e.StackTrace}");
-#endif
+                    Log.LogDebug($"Stack trace: {e.StackTrace}");
                 }
             }
 
@@ -553,9 +547,7 @@ namespace SleepLonger
                 catch (Exception e)
                 {
                     Log.LogError($"UpdatePanel Prefix failed for player {__instance.CharacterUI.TargetCharacter.Name} ({e.GetType()}): {e.Message}");
-#if DEBUG
-                    Log.LogError($"Stack trace: {e.StackTrace}");
-#endif
+                    Log.LogDebug($"Stack trace: {e.StackTrace}");
                 }
 
                 return true;
