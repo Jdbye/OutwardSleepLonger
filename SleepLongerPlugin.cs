@@ -2,47 +2,32 @@
 // TODO: 72h/168h marks on slider
 // Todo: Nicer 3day/7day skyline
 using BepInEx;
-using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
 using System;
-using System.Collections;
-using System.Linq;
-using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.UIElements;
-using static MapMagic.ObjectPool;
 
-namespace JdbyeOutwardMod
+namespace SleepLonger
 {
     [BepInPlugin(GUID, NAME, VERSION)]
-    public class Plugin : BaseUnityPlugin
+    public class SleepLongerPlugin : BaseUnityPlugin
     {
         public const string NAME = "SleepLonger";
-        public const string VERSION = "1.0.0";
+        public const string VERSION = "1.1.0";
         public const string CREATOR = "Jdbye";
         public const string GUID = CREATOR + NAME;
 
         internal static ManualLogSource Log;
-
-        // If you need settings, define them like so:
-        //public static ConfigEntry<bool> ExampleConfig;
 
         internal void Awake()
         {
             Log = this.Logger;
             Log.LogInfo($"{NAME} {VERSION} by {CREATOR} loaded!");
 
-            // Any config settings you define should be set up like this:
-            //ExampleConfig = Config.Bind("ExampleCategory", "ExampleSetting", false, "This is an example setting.");
-
-            // Harmony is for patching methods. If you're not patching anything, you can comment-out or delete this line.
             new Harmony(GUID).PatchAll();
         }
 
-        // Update is called once per frame. Use this only if needed.
-        // You also have all other MonoBehaviour methods available (OnGUI, etc)
         internal void Update()
         {
 
@@ -73,15 +58,16 @@ namespace JdbyeOutwardMod
 
         internal static void InitSkylineValues(RestingMenu restingMenu, int hours)
         {
+            // Copied from Outward, modified to allow higher max value for the cursors
             hoursAll[restingMenu.CharacterUI.gameObject.name] = hours;
             float hoursf = (float)hours;
 
             if (restingMenu.m_skylineScrollRect)
             {
                 restingMenu.m_skylineStartingToDRatio = (float)restingMenu.m_skylineStartingTime / 24F;
-                float num = restingMenu.m_skylineScrollRect.content.rect.width / (float)restingMenu.m_skylineScrollRect.content.childCount;
-                float num2 = restingMenu.m_skylineScrollRect.viewport.rect.width / num;
-                float maxValue = hoursf * num2;
+                float widthOfSingleImage = restingMenu.m_skylineScrollRect.content.rect.width / (float)restingMenu.m_skylineScrollRect.content.childCount;
+                float widthRatio = restingMenu.m_skylineScrollRect.viewport.rect.width / widthOfSingleImage;
+                float maxValue = hoursf * widthRatio;
                 if (restingMenu.m_sldLocalPlayerCursor)
                 {
                     restingMenu.m_sldLocalPlayerCursor.maxValue = maxValue;
@@ -103,21 +89,22 @@ namespace JdbyeOutwardMod
 
         internal static void RefreshSkylinePosition(RestingMenu restingMenu)
         {
+            // Runs alongside the stock Outward RefreshSkylinePosition to update the position of the extra skylines
             var dayPanorama = restingMenu.transform.Find("Content/DayPanorama");
 
-            float num = EnvironmentConditions.Instance.TODRatio - restingMenu.m_skylineStartingToDRatio;
-            if (num < 0f) num += 1f;
+            float adjustedRatio = EnvironmentConditions.Instance.TODRatio - restingMenu.m_skylineStartingToDRatio;
+            if (adjustedRatio < 0f) adjustedRatio += 1f;
 
             var scrollView3Day = dayPanorama.Find("ScrollView3Day");
             if (scrollView3Day)
             {
-                scrollView3Day.GetComponent<ScrollRect>().horizontalNormalizedPosition = num;
+                scrollView3Day.GetComponent<ScrollRect>().horizontalNormalizedPosition = adjustedRatio;
             }
 
             var scrollView7Day = dayPanorama.Find("ScrollView7Day");
             if (scrollView7Day)
             {
-                scrollView7Day.GetComponent<ScrollRect>().horizontalNormalizedPosition = num;
+                scrollView7Day.GetComponent<ScrollRect>().horizontalNormalizedPosition = adjustedRatio;
             }
         }
 
@@ -135,6 +122,7 @@ namespace JdbyeOutwardMod
 
                 if (CharacterManager.Instance.BaseAmbushProbability > 0)
                 {
+                    // Calculate adjusted ambush probability based on any ambush reduction of tents
                     float ambushProbability = CharacterManager.Instance.BaseAmbushProbability;
 
                     int ambushReduction = int.MaxValue;
@@ -157,14 +145,16 @@ namespace JdbyeOutwardMod
 #endif
 
                     // If ambush reduction reduces our probability to <= 0, we don't need to guard
-                    // Otherwise, we need to guard half the total resting time to reduce the probability to 0
+                    // Otherwise, we need to guard half the total resting time to reduce the probability to 0, no matter what the probability is
                     if (ambushProbability > 0) guardHours = hours / 2;
                     else guardHours = 0;
                 }
 
+                // Some reasonable defaults for long sleeps, to minimize mana loss
                 int sleepHours = hours / 6;
                 int repairHours = hours - (guardHours + sleepHours);
 
+                // Update the slider values to max them out
                 foreach (var display in restingMenu.m_restingActivityDisplays)
                 {
                     switch (display.Activity.Type)
@@ -190,6 +180,7 @@ namespace JdbyeOutwardMod
             }
             else
             {
+                // We are not sleeping for 3 or 7 days, reset the sliders to 0
                 foreach (var display in restingMenu.m_restingActivityDisplays)
                 {
                     display.m_timeSelector.ChangeValue(0);
@@ -200,16 +191,18 @@ namespace JdbyeOutwardMod
 
         internal static void UpdatePanel(RestingMenu restingMenu, int hours)
         {
+            // Overrides the stock Outward UpdatePanel only if needed (3 or 7 day sleep is selected)
+            // This is needed 
             restingMenu.RefreshSkylinePosition();
             RefreshSkylinePosition(restingMenu);
-            int num = 0;
-            bool flag = true;
-            bool flag2 = true;
+            int totalRestHours = 0;
+            bool allPlayersInRestContainer = true;
+            bool donePreparingRest = true;
             if (Global.Lobby.PlayersInLobby.Count - 1 != restingMenu.m_otherPlayerUIDs.Count)
             {
                 restingMenu.InitPlayerCursors();
-                flag = false;
-                flag2 = false;
+                allPlayersInRestContainer = false;
+                donePreparingRest = false;
             }
             else
             {
@@ -220,26 +213,26 @@ namespace JdbyeOutwardMod
                     {
                         if (CharacterManager.Instance.RestingPlayerUIDs.Contains(characterFromPlayer.UID))
                         {
-                            flag2 &= characterFromPlayer.CharacterResting.DonePreparingRest;
+                            donePreparingRest &= characterFromPlayer.CharacterResting.DonePreparingRest;
                         }
                         else
                         {
-                            flag = false;
+                            allPlayersInRestContainer = false;
                         }
                         restingMenu.m_sldOtherPlayerCursors[i].value = characterFromPlayer.CharacterResting.TotalRestTime;
                     }
                     else
                     {
-                        flag = false;
+                        allPlayersInRestContainer = false;
                     }
                 }
             }
             for (int j = 0; j < SplitScreenManager.Instance.LocalPlayerCount; j++)
             {
-                flag &= (SplitScreenManager.Instance.LocalPlayers[j].AssignedCharacter != null);
+                allPlayersInRestContainer &= (SplitScreenManager.Instance.LocalPlayers[j].AssignedCharacter != null);
             }
-            flag2 = (flag2 && flag);
-            restingMenu.m_restingCanvasGroup.interactable = (flag && !restingMenu.LocalCharacter.CharacterResting.DonePreparingRest);
+            donePreparingRest = (donePreparingRest && allPlayersInRestContainer);
+            restingMenu.m_restingCanvasGroup.interactable = (allPlayersInRestContainer && !restingMenu.LocalCharacter.CharacterResting.DonePreparingRest);
             if (restingMenu.m_waitingForOthers)
             {
                 if (restingMenu.m_waitingForOthers.gameObject.activeSelf == restingMenu.m_restingCanvasGroup.interactable)
@@ -248,18 +241,18 @@ namespace JdbyeOutwardMod
                 }
                 if (restingMenu.m_waitingText && restingMenu.m_waitingForOthers.gameObject.activeSelf)
                 {
-                    restingMenu.m_waitingText.text = LocalizationManager.Instance.GetLoc(flag2 ? "Rest_Title_Resting" : "Sleep_Title_Waiting");
+                    restingMenu.m_waitingText.text = LocalizationManager.Instance.GetLoc(donePreparingRest ? "Rest_Title_Resting" : "Sleep_Title_Waiting");
                 }
             }
             for (int k = 0; k < restingMenu.m_restingActivityDisplays.Length; k++)
             {
-                num += restingMenu.m_restingActivityDisplays[k].AssignedTime;
+                totalRestHours += restingMenu.m_restingActivityDisplays[k].AssignedTime;
             }
             for (int l = 0; l < restingMenu.m_restingActivityDisplays.Length; l++)
             {
                 if (restingMenu.ActiveActivities[l] != RestingActivity.ActivityTypes.Guard || CharacterManager.Instance.BaseAmbushProbability > 0)
                 {
-                    restingMenu.m_restingActivityDisplays[l].MaxValue = hours - (num - restingMenu.m_restingActivityDisplays[l].AssignedTime);
+                    restingMenu.m_restingActivityDisplays[l].MaxValue = hours - (totalRestHours - restingMenu.m_restingActivityDisplays[l].AssignedTime);
                 }
                 else
                 {
@@ -268,19 +261,21 @@ namespace JdbyeOutwardMod
             }
             if (restingMenu.m_sldLocalPlayerCursor)
             {
-                restingMenu.m_sldLocalPlayerCursor.value = (float)num;
+                restingMenu.m_sldLocalPlayerCursor.value = (float)totalRestHours;
             }
-            bool flag3 = false;
-            if (restingMenu.m_lastTotalRestTime != num)
+            bool totalRestHoursChanged = false;
+            if (restingMenu.m_lastTotalRestTime != totalRestHours)
             {
-                flag3 = true;
-                restingMenu.m_lastTotalRestTime = num;
+                totalRestHoursChanged = true;
+                restingMenu.m_lastTotalRestTime = totalRestHours;
             }
-            restingMenu.RefreshOverviews(flag3 && !restingMenu.m_tryRest);
+            restingMenu.RefreshOverviews(totalRestHoursChanged && !restingMenu.m_tryRest);
         }
 
         private static Texture2D GetReadableTexture2D(Texture texture)
         {
+            // Makes a Texture2D compatible with GetPixels by blitting it to a RenderTexture and reading the pixels back
+            // Not currently used
             var tmp = RenderTexture.GetTemporary(
                 texture.width,
                 texture.height,
@@ -304,6 +299,7 @@ namespace JdbyeOutwardMod
 
         internal static Texture2D Crop(Texture2D sourceTexture, Rect cropRect)
         {
+            // Crops a Texture2D, not currently used
             var cropRectInt = new RectInt
             (
                 Mathf.FloorToInt(cropRect.x),
@@ -385,7 +381,7 @@ namespace JdbyeOutwardMod
                     }
                     foreach (RectTransform t in skyline3DayContent)
                     {
-                        // Scale images by 1/3
+                        // Scale images by 1/3 horizontally
                         var layout = t.gameObject.GetComponent<LayoutElement>();
                         layout.minWidth = layout.minWidth / 3;
                         t.gameObject.GetComponent<UnityEngine.UI.Image>().preserveAspect = false;
@@ -404,7 +400,7 @@ namespace JdbyeOutwardMod
                     }
                     foreach (RectTransform t in skyline7DayContent)
                     {
-                        // Scale images by 1/7
+                        // Scale images by 1/7 horizontally
                         var layout = t.gameObject.GetComponent<LayoutElement>();
                         layout.minWidth = layout.minWidth / 7;
                         t.gameObject.GetComponent<UnityEngine.UI.Image>().preserveAspect = false;
@@ -544,7 +540,7 @@ namespace JdbyeOutwardMod
             [HarmonyPatch(nameof(RestingMenu.UpdatePanel)), HarmonyPrefix]
             static bool RestingMenu_UpdatePanel_Prefix(RestingMenu __instance)
             {
-                // This patch overrides UpdatePanel when needed to increase the maximum hour count
+                // This patch overrides UpdatePanel when needed to increase the maximum hour count, but defaults to the stock UpdatePanel when 3/7 day sleep is not selected
 
                 try
                 {
