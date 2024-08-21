@@ -37,7 +37,7 @@ namespace SleepLonger
         {
             // We use the "Show HUD" checkbox from options.
             // No particular reason, it's just a convenient one to use.
-            var orig = characterUI.transform.Find("Canvas/GeneralPanels/Options - Panel(Clone)/Window/Panel/Content/Scroll View/Viewport/Content/General/Gameplay/chkShowHud");
+            var orig = characterUI.transform.Find("Canvas/GeneralPanels/Options - Panel(Clone)/Window/Panel/Content/Scroll View/Viewport/Content/General/Gameplay/chkInvertMouseY");
             return orig.gameObject;
         }
 
